@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --jade: #0d4a45;
+    --jade-mid: #1a6b63;
+    --jade-light: #2a9085;
+    --cream: #f7f3ec;
+    --cream-dark: #ede7da;
+    --gold: #c8973a;
+    --gold-light: #e8b85a;
+    --text-dark: #1a1a1a;
+    --text-mid: #4a5568;
+    --text-light: #8a9ab0;
+    --white: #ffffff;
+    --card-bg: rgba(255,255,255,0.85);
+    --shadow: 0 8px 40px rgba(13,74,69,0.12);
+    --shadow-strong: 0 16px 60px rgba(13,74,69,0.22);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--cream);
+    color: var(--text-dark);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .nav-fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(13,74,69,0.97);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+    height: 68px;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.18);
+  }
+
+  .hero-gradient {
+    background: linear-gradient(160deg, #0d4a45 0%, #0a3330 50%, #071e1c 100%);
+  }
+
+  .card-glass {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #c8973a 0%, #e8b85a 100%);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(200,151,58,0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(200,151,58,0.4);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--cream);
+    border: 2px solid var(--gold);
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+
+  .btn-secondary:hover {
+    background: var(--gold);
+    color: var(--jade);
+  }
+}
