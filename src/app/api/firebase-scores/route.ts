@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { FirestoreDocument } from '@/types/score'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function getFirebaseConfig() {
   const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
@@ -73,6 +76,7 @@ async function listAllScoreDocuments(
 
     const listUrl = `${base}?${params.toString()}`
     const response = await fetch(listUrl, {
+      cache: 'no-store',
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         Pragma: 'no-cache',
