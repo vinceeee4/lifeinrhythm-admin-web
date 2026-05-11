@@ -32,11 +32,12 @@ export interface FirestoreResponse {
 }
 
 export interface LeaderboardEntry {
-  rank: number;
   playerName: string;
   empathyScore: number;
   timeFormatted: string;
   grade: string;
   datePlayed: string;
   leaderboardScore: number;
+  /** Seconds; optional but improves Time column sorting vs parsing timeFormatted */
+  totalTime?: number;
 }

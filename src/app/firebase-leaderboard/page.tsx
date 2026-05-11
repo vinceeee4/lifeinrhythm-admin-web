@@ -1,20 +1,44 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Score, LeaderboardEntry } from '@/types/score'
+import {
+  defaultSortDirection,
+  type LeaderboardSortKey,
+  type SortDirection,
+  sortLeaderboardRows,
+} from '@/lib/leaderboardSort'
+import { SortableTh } from '@/components/leaderboard/SortableTh'
 
 export default function FirebaseLeaderboardPage() {
   const [scores, setScores] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [sortKey, setSortKey] = useState<LeaderboardSortKey>('empathyScore')
+  const [sortDir, setSortDir] = useState<SortDirection>('desc')
+  const sortKeyRef = useRef(sortKey)
+  sortKeyRef.current = sortKey
+
+  const handleSort = useCallback((key: LeaderboardSortKey) => {
+    if (sortKeyRef.current === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir(defaultSortDirection(key))
+    }
+  }, [])
+
+  const sortedScores = useMemo(
+    () => sortLeaderboardRows(scores, sortKey, sortDir),
+    [scores, sortKey, sortDir]
+  )
 
   const fetchScores = async () => {
     try {
       const timestamp = Date.now()
-      console.log('Fetching fresh Firebase data at timestamp:', timestamp)
-      
-      const response = await fetch('/api/firebase-scores', {
+
+      const response = await fetch(`/api/firebase-scores?_=${timestamp}`, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate',
           'Pragma': 'no-cache',
@@ -28,20 +52,17 @@ export default function FirebaseLeaderboardPage() {
       }
 
       const data: Score[] = await response.json()
-      
-      console.log('Firebase leaderboard - Received', data.length, 'scores from API:', data)
-      
-      const leaderboardEntries: LeaderboardEntry[] = data.map((score, index) => ({
-        rank: index + 1,
+
+      const leaderboardEntries: LeaderboardEntry[] = data.map((score) => ({
         playerName: score.playerName,
         empathyScore: score.empathyScore,
         timeFormatted: score.timeFormatted,
         grade: score.grade,
         datePlayed: score.datePlayed,
         leaderboardScore: score.leaderboardScore,
+        totalTime: score.totalTime,
       }))
 
-      console.log('Firebase leaderboard - Created', leaderboardEntries.length, 'leaderboard entries:', leaderboardEntries)
       setScores(leaderboardEntries)
       setLastUpdated(new Date())
       setError(null)
@@ -132,33 +153,72 @@ export default function FirebaseLeaderboardPage() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <div className="max-h-[min(70vh,36rem)] overflow-auto">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-10 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md">
                   <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Rank</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Player Name</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Score</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Time</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Grade</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider text-white">
+                      Rank
+                    </th>
+                    <SortableTh
+                      tone="firebase"
+                      label="Player Name"
+                      column="playerName"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                    <SortableTh
+                      tone="firebase"
+                      label="Score"
+                      column="empathyScore"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                    <SortableTh
+                      tone="firebase"
+                      label="Time"
+                      column="time"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                    <SortableTh
+                      tone="firebase"
+                      label="Grade"
+                      column="grade"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
+                    <SortableTh
+                      tone="firebase"
+                      label="Date"
+                      column="datePlayed"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {scores.map((entry) => (
-                    <tr 
-                      key={`${entry.playerName}-${entry.datePlayed}`}
+                  {sortedScores.map((entry, index) => {
+                    const rank = index + 1
+                    return (
+                    <tr
+                      key={`${entry.playerName}-${entry.datePlayed}-${entry.timeFormatted}-${rank}`}
                       className={`hover:bg-gray-50 transition-colors ${
-                        entry.rank <= 3 ? 'bg-gradient-to-r from-yellow-50 to-amber-50' : ''
+                        rank <= 3 ? 'bg-gradient-to-r from-yellow-50 to-amber-50' : ''
                       }`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className="text-lg font-bold text-gray-800">
-                            {entry.rank}
+                            {rank}
                           </span>
                           <span className="ml-2 text-2xl">
-                            {getMedalEmoji(entry.rank)}
+                            {getMedalEmoji(rank)}
                           </span>
                         </div>
                       </td>
@@ -192,7 +252,8 @@ export default function FirebaseLeaderboardPage() {
                         {formatDate(entry.datePlayed)}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

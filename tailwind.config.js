@@ -21,10 +21,13 @@ module.exports = {
           DEFAULT: '#c8973a',
           light: '#e8b85a',
         },
-        text: {
-          dark: '#1a1a1a',
-          mid: '#4a5568',
-          light: '#8a9ab0',
+        quiet: {
+          sage: '#C7E1D8',
+          'sage-deep': '#b5d3c9',
+          coral: '#F0625D',
+          'coral-hover': '#d94e4a',
+          ink: '#242424',
+          mist: 'rgba(255,255,255,0.55)',
         },
       },
       fontFamily: {

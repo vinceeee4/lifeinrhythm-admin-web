@@ -1,7 +1,14 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Score } from '@/types/score'
+import {
+  defaultSortDirection,
+  type LeaderboardSortKey,
+  type SortDirection,
+  sortLeaderboardRows,
+} from '@/lib/leaderboardSort'
+import { SortableTh } from '@/components/leaderboard/SortableTh'
 
 interface NewScoreForm {
   playerName: string
@@ -26,6 +33,24 @@ export default function LeaderboardClient() {
   const [form, setForm] = useState<NewScoreForm>(initialForm)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<LeaderboardSortKey>('empathyScore')
+  const [sortDir, setSortDir] = useState<SortDirection>('desc')
+  const sortKeyRef = useRef(sortKey)
+  sortKeyRef.current = sortKey
+
+  const handleSort = useCallback((key: LeaderboardSortKey) => {
+    if (sortKeyRef.current === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir(defaultSortDirection(key))
+    }
+  }, [])
+
+  const sortedScores = useMemo(
+    () => sortLeaderboardRows(scores, sortKey, sortDir),
+    [scores, sortKey, sortDir]
+  )
 
   const fetchScores = async () => {
     setLoading(true)
@@ -73,56 +98,118 @@ export default function LeaderboardClient() {
   }
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-jade md:text-4xl">Legacy Leaderboard</h1>
-        <p className="mt-2 text-text-mid">Top Life in Rhythm player scores from Firebase.</p>
+    <>
+      <div className="lb-header">
+        <p className="section-label">Rankings</p>
+        <h2 className="section-title text-cream">Leaderboard</h2>
+        <p className="text-[rgba(247,243,236,0.65)]">Top performers in the Life in Rhythm caregiving simulation</p>
       </div>
 
-      {/* <div className="rounded-xl bg-yellow-50 p-4 border border-yellow-200">
-        <p className="text-sm text-yellow-800">
-          <strong>Note:</strong> This is a read-only view of Firebase scores. To add new scores, use the Firebase Console or visit the new <a href="/firebase-leaderboard" className="text-blue-600 hover:underline">Firebase Leaderboard</a>.
-        </p>
-      </div> */}
+      <div className="lb-container">
+        {/* Podium for top 3 */}
+        <div className="podium" id="podium">
+          {sortedScores.slice(0, 3).map((entry, index) => {
+            const position = index + 1
+            const positionClass = position === 1 ? 'podium-1st' : position === 2 ? 'podium-2nd' : 'podium-3rd'
+            const initials = entry.playerName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+            
+            return (
+              <div key={`podium-${index}`} className={`podium-item ${positionClass}`}>
+                <div className="podium-avatar">{initials}</div>
+                <div className="podium-block">
+                  <div className="podium-rank">{position}</div>
+                  <div className="podium-name">{entry.playerName}</div>
+                  <div className="podium-score">{entry.empathyScore}</div>
+                  <div className="podium-grade">{entry.grade}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
-      {error && <p className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
+        {/* Controls */}
+        <div className="lb-controls">
+          <input 
+            className="lb-search" 
+            type="text" 
+            placeholder="Search player name…" 
+            id="lb-search-input" 
+            onInput={(e) => {
+              const searchTerm = e.currentTarget.value.toLowerCase()
+              const filtered = scores.filter(score => 
+                score.playerName.toLowerCase().includes(searchTerm)
+              )
+              // You might want to add state for filtered scores
+            }}
+          />
+          <select className="lb-filter" id="lb-grade-filter">
+            <option value="">All Grades</option>
+            <option value="A">Grade A</option>
+            <option value="B">Grade B</option>
+            <option value="C">Grade C</option>
+            <option value="D">Grade D</option>
+            <option value="F">Grade F</option>
+          </select>
+          <button className="btn-refresh" onClick={fetchScores}>↺ Refresh</button>
+        </div>
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-jade/10">
-        <table className="w-full border-collapse">
-          <thead className="bg-jade/5">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Rank</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Player</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Empathy Score</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Time</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Grade</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-jade">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scores.length === 0 && !loading ? (
+        {error && <p className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
+
+        {/* Table */}
+        <div className="lb-table-wrapper">
+          <table className="lb-table">
+            <thead>
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-text-mid">
-                  No scores yet.
-                </td>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Score</th>
+                <th>Grade</th>
+                <th>Date</th>
               </tr>
-            ) : (
-              scores.map((entry, index) => (
-                <tr key={`${entry.playerName}-${entry.datePlayed}`} className="border-t border-gray-100">
-                  <td className="px-4 py-3">{index + 1}</td>
-                  <td className="px-4 py-3 font-medium">{entry.playerName}</td>
-                  <td className="px-4 py-3">{entry.empathyScore}</td>
-                  <td className="px-4 py-3">{entry.timeFormatted}</td>
-                  <td className="px-4 py-3">{entry.grade}</td>
-                  <td className="px-4 py-3">
-                    {new Date(entry.datePlayed).toLocaleDateString()}
+            </thead>
+            <tbody id="lb-tbody">
+              {scores.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-text-mid">
+                    No scores yet.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                sortedScores.map((entry, index) => {
+                  const rank = index + 1
+                  const rankClass = rank === 1 ? 'top1' : rank === 2 ? 'top2' : rank === 3 ? 'top3' : ''
+                  const gradeClass = `g-${entry.grade.charAt(0)}`
+                  
+                  return (
+                    <tr
+                      key={`${entry.playerName}-${entry.datePlayed}-${entry.timeFormatted}-${index}`}
+                    >
+                      <td className="px-4 py-3">
+                        <span className={`rank-badge ${rankClass}`}>{rank}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="player-name">{entry.playerName}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="score-bar-wrap">
+                          <div className="score-bar" style={{width: `${entry.empathyScore}%`}}></div>
+                          <span className="score-text">{entry.empathyScore}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`grade-pill ${gradeClass}`}>{entry.grade}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {new Date(entry.datePlayed).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </section>
+    </>
   )
 }

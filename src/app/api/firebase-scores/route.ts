@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Score, FirestoreResponse, FirestoreDocument } from '@/types/score'
+import type { FirestoreDocument } from '@/types/score'
 
 function getFirebaseConfig() {
   const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
@@ -45,66 +45,64 @@ function transformFirestoreDocument(doc: any) {
   };
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const { PROJECT_ID, API_KEY } = getFirebaseConfig()
-    
-    // Use structured query approach for reliable fresh data (no pagination issues)
-    const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery?key=${API_KEY}`
-    
-    console.log('Fetching from Firebase with structured query:', url)
-    
-    const response = await fetch(url, {
-      method: 'POST',
+type ListDocumentsPage = {
+  documents?: FirestoreDocument[]
+  nextPageToken?: string
+}
+
+/**
+ * List every document in `scores` (paginated). Unlike runQuery + orderBy(leaderboardScore),
+ * this includes documents that are missing `leaderboardScore` — those were invisible before.
+ */
+async function listAllScoreDocuments(
+  PROJECT_ID: string,
+  API_KEY: string
+): Promise<FirestoreDocument[]> {
+  const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/scores`
+  const documents: FirestoreDocument[] = []
+  let pageToken: string | undefined
+
+  do {
+    const params = new URLSearchParams({
+      key: API_KEY,
+      pageSize: '300',
+    })
+    if (pageToken) {
+      params.set('pageToken', pageToken)
+    }
+
+    const listUrl = `${base}?${params.toString()}`
+    const response = await fetch(listUrl, {
       headers: {
-        'Content-Type': 'application/json',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        Pragma: 'no-cache',
+        Expires: '0',
       },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: 'scores' }],
-          orderBy: [{
-            field: { fieldPath: 'leaderboardScore' },
-            direction: 'DESCENDING'
-          }],
-          limit: 100
-        }
-      })
     })
 
     if (!response.ok) {
       const errorData = await response.text()
-      console.error('Firebase API Error:', errorData)
-      return NextResponse.json(
-        { error: 'Failed to fetch scores from Firebase', details: errorData },
-        { status: response.status }
-      )
+      throw new Error(errorData || `List scores failed: ${response.status}`)
     }
 
-    const rawData = await response.json()
-    console.log('Firebase structured query raw response:', JSON.stringify(rawData, null, 2))
-    console.log('Raw array length:', rawData.length)
-    
-    // runQuery returns array, filter out items without document property
-    const documents = rawData
-      .filter((item: any) => item && item.document) // Remove items without document
-      .map((item: any) => item.document);   // Extract document from wrapper
-    
-    console.log('Valid documents found:', documents.length)
-    
-    // Debug: Log document IDs and key info
-    documents.forEach((doc: any, index: number) => {
-      console.log(`Document ${index}:`, {
-        documentId: doc.name?.split('/').pop() || '',
-        playerName: doc.fields?.playerName?.stringValue,
-        empathyScore: doc.fields?.empathyScore?.integerValue || doc.fields?.empathyScore?.doubleValue,
-        leaderboardScore: doc.fields?.leaderboardScore?.integerValue || doc.fields?.leaderboardScore?.doubleValue,
-        grade: doc.fields?.grade?.stringValue
-      })
-    })
-    
+    const page = (await response.json()) as ListDocumentsPage
+    if (page.documents?.length) {
+      documents.push(...page.documents)
+    }
+    pageToken = page.nextPageToken
+  } while (pageToken)
+
+  return documents
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { PROJECT_ID, API_KEY } = getFirebaseConfig()
+
+    const documents = await listAllScoreDocuments(PROJECT_ID, API_KEY)
+
+    console.log('Scores documents listed (all pages):', documents.length)
+
     if (documents.length === 0) {
       console.log('No documents found in Firebase')
       return NextResponse.json([], { status: 200 })
@@ -115,9 +113,9 @@ export async function GET(request: NextRequest) {
       .filter((doc: any) => doc && doc.fields) // Only filter for documents that have fields
       .map(transformFirestoreDocument) // Use the fixed transform function
       .sort((a: any, b: any) => b.leaderboardScore - a.leaderboardScore) // Sort by leaderboardScore
-      .slice(0, 10) // Limit to top 10
+      .slice(0, 100) // Top 100 by computed leaderboardScore across entire collection
 
-    console.log('Transformed', transformedScores.length, 'scores:', transformedScores)
+    console.log('Transformed scores (top 100):', transformedScores.length)
 
     return NextResponse.json(transformedScores, { 
       status: 200,
